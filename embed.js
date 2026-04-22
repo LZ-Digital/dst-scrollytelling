@@ -228,9 +228,9 @@
     intro.dataset.stepIndex = '-1';
     intro.innerHTML =
       '<div class="dst-step-card">' +
-        '<h2 class="dst-step-title">Kritische Engstellen</h2>' +
+        '<h2 class="dst-step-title">Maritime Nadelöhre</h2>' +
         '<p class="dst-step-text">' +
-          'Rund um den Globus gibt es sieben maritime Nadelöhre für die Containerschifffahrt. Jede Störung hier wirkt sich direkt auf den Welthandel aus.' +
+          'Rund um den Globus gibt es sieben neuralgische Punkte für den Schiffsverkehr. Wenn es hier hakt, kommt schlimmstenfalls der Welthandel aus dem Takt.' +
         '</p>' +
       '</div>';
     wrap.appendChild(intro);
