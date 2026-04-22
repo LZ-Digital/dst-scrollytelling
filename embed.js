@@ -99,7 +99,7 @@
   z-index: 2;
 }
 #dst-scrollytelling .dst-step {
-  min-height: 80vh;
+  min-height: 95vh;
   display: flex;
   align-items: center;
   padding: 2rem 1.5rem;
