@@ -11,6 +11,8 @@
   const ML_JS_URL     = 'https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js';
   const SCRL_JS_URL   = 'https://unpkg.com/scrollama@3/build/scrollama.min.js';
   const MAP_STYLE     = 'https://tiles.openfreemap.org/styles/positron';
+  const MAP_CENTER    = [37.6, 21.6]; // Red Sea overview
+  const MAP_ZOOM      = 3.5;
   const CSS_TAG_ID    = 'dst-scrollytelling-styles';
   const ROOT_ID       = 'dst-scrollytelling';
   const ACTIVE_COLOR  = '#e63946';
@@ -29,7 +31,6 @@
       .replace(/"/g, '&quot;');
   }
 
-  // Converts \n line-breaks in GeoJSON info text to <br> for HTML display.
   // escapeHtml first, then restore breaks — no raw user HTML is injected.
   function infoToHtml(str) {
     return escapeHtml(str).replace(/\n/g, '<br>');
@@ -64,101 +65,94 @@
   // ── CSS ────────────────────────────────────────────────────────────────────
 
   function injectStyles() {
-    if (document.getElementById(CSS_TAG_ID)) return; // idempotent
+    if (document.getElementById(CSS_TAG_ID)) return;
     const style = document.createElement('style');
     style.id = CSS_TAG_ID;
-    style.textContent = [
-      '#dst-scrollytelling {',
-      '  box-sizing: border-box;',
-      '  font-family: Georgia, "Times New Roman", serif;',
-      '  line-height: 1.55;',
-      '  color: #222;',
-      '  background: #fff;',
-      '}',
-      '#dst-scrollytelling *, #dst-scrollytelling *::before, #dst-scrollytelling *::after {',
-      '  box-sizing: inherit;',
-      '}',
-      // Layout wrapper
-      '#dst-scrollytelling .dst-layout {',
-      '  display: flex;',
-      '  flex-direction: row;',
-      '  align-items: flex-start;',
-      '  width: 100%;',
-      '  position: relative;',
-      '}',
-      // Text column (left, 40%)
-      '#dst-scrollytelling .dst-text-col {',
-      '  width: 40%;',
-      '  position: relative;',
-      '  z-index: 2;',
-      '}',
-      // Map column (right, 60%, sticky)
-      '#dst-scrollytelling .dst-map-col {',
-      '  width: 60%;',
-      '  position: sticky;',
-      '  top: 0;',
-      '  height: 100vh;',
-      '  z-index: 1;',
-      '}',
-      '#dst-scrollytelling .dst-map {',
-      '  width: 100%;',
-      '  height: 100%;',
-      '}',
-      // Individual scroll steps
-      '#dst-scrollytelling .dst-step {',
-      '  min-height: 80vh;',
-      '  display: flex;',
-      '  align-items: center;',
-      '  padding: 2rem 1.5rem;',
-      '}',
-      '#dst-scrollytelling .dst-step-intro {',
-      '  min-height: 60vh;',
-      '}',
-      '#dst-scrollytelling .dst-step-card {',
-      '  background: rgba(255, 255, 255, 0.95);',
-      '  border-left: 4px solid #ccc;',
-      '  padding: 1.25rem 1.25rem 1.25rem 1rem;',
-      '  border-radius: 2px;',
-      '  box-shadow: 0 1px 4px rgba(0,0,0,0.12);',
-      '  transition: border-color 0.3s ease;',
-      '  max-width: 340px;',
-      '}',
-      '#dst-scrollytelling .dst-step.is-active .dst-step-card {',
-      '  border-left-color: ' + ACTIVE_COLOR + ';',
-      '}',
-      '#dst-scrollytelling .dst-step-title {',
-      '  margin: 0 0 0.6rem 0;',
-      '  font-size: 1rem;',
-      '  font-weight: 700;',
-      '  line-height: 1.3;',
-      '  color: #111;',
-      '  white-space: pre-line;',
-      '}',
-      '#dst-scrollytelling .dst-step-text {',
-      '  margin: 0;',
-      '  font-size: 0.85rem;',
-      '  line-height: 1.6;',
-      '  color: #333;',
-      '}',
-      // Spacer at bottom so last step can scroll fully into view
-      '#dst-scrollytelling .dst-spacer {',
-      '  height: 40vh;',
-      '}',
-      // Mobile: stacked (map top sticky, text below)
-      '@media (max-width: 768px) {',
-      '  #dst-scrollytelling .dst-layout { flex-direction: column; }',
-      '  #dst-scrollytelling .dst-map-col {',
-      '    width: 100%;',
-      '    height: 60vw;',
-      '    min-height: 260px;',
-      '    position: sticky;',
-      '    top: 0;',
-      '  }',
-      '  #dst-scrollytelling .dst-text-col { width: 100%; }',
-      '  #dst-scrollytelling .dst-step { padding: 1.25rem 1rem; }',
-      '  #dst-scrollytelling .dst-step-card { max-width: 100%; }',
-      '}',
-    ].join('\n');
+    style.textContent = `
+#dst-scrollytelling {
+  box-sizing: border-box;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.55;
+  color: #222;
+  background: #fff;
+}
+#dst-scrollytelling *, #dst-scrollytelling *::before, #dst-scrollytelling *::after {
+  box-sizing: inherit;
+}
+#dst-scrollytelling .dst-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  width: 100%;
+  position: relative;
+}
+#dst-scrollytelling .dst-text-col {
+  width: 40%;
+  position: relative;
+  z-index: 2;
+}
+#dst-scrollytelling .dst-map-col {
+  width: 60%;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 1;
+}
+#dst-scrollytelling .dst-map {
+  width: 100%;
+  height: 100%;
+}
+#dst-scrollytelling .dst-step {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  padding: 2rem 1.5rem;
+}
+#dst-scrollytelling .dst-step-intro {
+  min-height: 60vh;
+}
+#dst-scrollytelling .dst-step-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-left: 4px solid #ccc;
+  padding: 1.25rem 1.25rem 1.25rem 1rem;
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  transition: border-color 0.3s ease;
+  max-width: 340px;
+}
+#dst-scrollytelling .dst-step.is-active .dst-step-card {
+  border-left-color: ${ACTIVE_COLOR};
+}
+#dst-scrollytelling .dst-step-title {
+  margin: 0 0 0.6rem 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #111;
+  white-space: pre-line;
+}
+#dst-scrollytelling .dst-step-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #333;
+}
+#dst-scrollytelling .dst-spacer {
+  height: 40vh;
+}
+@media (max-width: 768px) {
+  #dst-scrollytelling .dst-layout { flex-direction: column; }
+  #dst-scrollytelling .dst-map-col {
+    width: 100%;
+    height: 60vw;
+    min-height: 260px;
+    position: sticky;
+    top: 0;
+  }
+  #dst-scrollytelling .dst-text-col { width: 100%; }
+  #dst-scrollytelling .dst-step { padding: 1.25rem 1rem; }
+  #dst-scrollytelling .dst-step-card { max-width: 100%; }
+}`;
     document.head.appendChild(style);
   }
 
@@ -182,7 +176,6 @@
   function buildSteps(container, features) {
     const wrap = container.querySelector('.dst-steps-wrap');
 
-    // Intro step — overview, not tied to a specific feature
     const intro = document.createElement('div');
     intro.className = 'dst-step dst-step-intro is-active';
     intro.dataset.stepIndex = '-1';
@@ -213,31 +206,34 @@
 
   // ── Map Helpers ────────────────────────────────────────────────────────────
 
-  function fitAllFeatures(map, features) {
-    if (!features.length) return;
+  function computeBounds(features) {
     const coords = features.map(function (f) { return f.geometry.coordinates; });
-    const bounds = coords.reduce(function (b, c) {
+    return coords.reduce(function (b, c) {
       return b.extend(c);
     }, new maplibregl.LngLatBounds(coords[0], coords[0]));
-    map.fitBounds(bounds, { padding: 80, duration: 1000, maxZoom: 6 });
+  }
+
+  function setCirclePaint(map, radius, color) {
+    map.setPaintProperty('dst-circles', 'circle-radius', radius);
+    map.setPaintProperty('dst-circles', 'circle-color',  color);
   }
 
   function highlightMarker(map, activeIndex) {
-    const radiusExpr = ['case', ['==', ['get', 'index'], activeIndex], ACTIVE_RADIUS, INACT_RADIUS];
-    const colorExpr  = ['case', ['==', ['get', 'index'], activeIndex], ACTIVE_COLOR,  INACT_COLOR];
-    map.setPaintProperty('dst-circles', 'circle-radius', radiusExpr);
-    map.setPaintProperty('dst-circles', 'circle-color',  colorExpr);
+    setCirclePaint(map,
+      ['case', ['==', ['get', 'index'], activeIndex], ACTIVE_RADIUS, INACT_RADIUS],
+      ['case', ['==', ['get', 'index'], activeIndex], ACTIVE_COLOR,  INACT_COLOR]
+    );
   }
 
   function resetMarkers(map) {
-    map.setPaintProperty('dst-circles', 'circle-radius', INACT_RADIUS);
-    map.setPaintProperty('dst-circles', 'circle-color',  INACT_COLOR);
+    setCirclePaint(map, INACT_RADIUS, INACT_COLOR);
   }
 
   // ── Scrollama Init ─────────────────────────────────────────────────────────
 
-  function initScrollama(map, features, container) {
+  function initScrollama(map, features, container, bounds) {
     const scroller = scrollama();
+    const steps = container.querySelectorAll('.dst-step'); // cached once
 
     scroller
       .setup({
@@ -248,28 +244,25 @@
       .onStepEnter(function (_ref) {
         const element = _ref.element;
 
-        container.querySelectorAll('.dst-step').forEach(function (el) {
-          el.classList.remove('is-active');
-        });
+        steps.forEach(function (el) { el.classList.remove('is-active'); });
         element.classList.add('is-active');
 
         const idx = parseInt(element.dataset.stepIndex, 10);
 
         if (idx === -1) {
-          fitAllFeatures(map, features);
+          map.fitBounds(bounds, { padding: 80, duration: 1000, maxZoom: 6 });
           resetMarkers(map);
           return;
         }
 
         const feature = features[idx];
-        const coords  = feature.geometry.coordinates;
         const props   = feature.properties;
 
         map.flyTo({
-          center:   coords,
-          zoom:     props.zoom    != null ? props.zoom    : 8,
-          bearing:  props.bearing != null ? props.bearing : 0,
-          pitch:    props.pitch   != null ? props.pitch   : 0,
+          center:   feature.geometry.coordinates,
+          zoom:     props.zoom    ?? 8,
+          bearing:  props.bearing ?? 0,
+          pitch:    props.pitch   ?? 0,
           duration: FLY_DURATION,
           essential: true,
         });
@@ -294,11 +287,9 @@
 
     injectStyles();
 
-    // Unique map div ID so multiple maps on a page don't collide.
     const mapDivId = ROOT_ID + '-map-' + Math.random().toString(36).slice(2, 8);
     buildDOM(container, mapDivId);
 
-    // Load MapLibre CSS (non-blocking) then JS + Scrollama in parallel.
     loadCSS(ML_CSS_URL);
     try {
       await Promise.all([
@@ -313,8 +304,8 @@
     const map = new maplibregl.Map({
       container: mapDivId,
       style:     MAP_STYLE,
-      center:    [37.6, 21.6], // Red Sea overview
-      zoom:      3.5,
+      center:    MAP_CENTER,
+      zoom:      MAP_ZOOM,
       bearing:   0,
       pitch:     0,
     });
@@ -331,13 +322,13 @@
       }
 
       const features = geojson.features;
+      const bounds   = computeBounds(features);
 
       map.addSource('dst-points', {
         type: 'geojson',
         data: geojson,
       });
 
-      // Pulsing circle markers for all locations
       map.addLayer({
         id:     'dst-circles',
         type:   'circle',
@@ -350,7 +341,6 @@
         },
       });
 
-      // Location name labels
       map.addLayer({
         id:     'dst-labels',
         type:   'symbol',
@@ -363,15 +353,15 @@
           'text-font':   ['Noto Sans Regular'],
         },
         paint: {
-          'text-color':       '#111',
-          'text-halo-color':  '#ffffff',
-          'text-halo-width':  1.5,
+          'text-color':      '#111',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 1.5,
         },
       });
 
       buildSteps(container, features);
-      fitAllFeatures(map, features);
-      initScrollama(map, features, container);
+      map.fitBounds(bounds, { padding: 80, duration: 1000, maxZoom: 6 });
+      initScrollama(map, features, container, bounds);
     });
   }
 
