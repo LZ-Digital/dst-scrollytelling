@@ -17,6 +17,11 @@
   const ROOT_ID      = 'dst-scrollytelling';
   const BRAND_COLOR  = '#086f91';
   const FLY_DURATION = 1400;
+  // Must match the mobile @media in injectStyles
+  const MOBILE_MQ = '(max-width: 768px)';
+  // Scrollama: höherer Wert = Step wird erst „entered“, wenn stärker gescrollt (vorheriger Step eher weg).
+  const SCROLL_OFFSET_DESKTOP   = 0.5;
+  const SCROLL_OFFSET_MOBILE   = 0.8;
 
   // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -28,9 +33,24 @@
       .replace(/"/g, '&quot;');
   }
 
-  // escapeHtml first, then restore breaks — no raw user HTML is injected.
+  // Fett: **doppelte Sterne** (wie Markdown), kein HTML in den Daten. Pro Segment
+  // zuerst escape, dann Zeilenumbrüche — bei unvollständigen ** fällt der ganze
+  // Text als nur Text zurück.
   function infoToHtml(str) {
-    return escapeHtml(str).replace(/\n/g, '<br>');
+    const s = String(str);
+    const parts = s.split('**');
+    if (parts.length === 1) {
+      return escapeHtml(s).replace(/\n/g, '<br>');
+    }
+    if (parts.length % 2 === 0) {
+      return escapeHtml(s).replace(/\n/g, '<br>');
+    }
+    return parts
+      .map(function (chunk, i) {
+        const body = escapeHtml(chunk).replace(/\n/g, '<br>');
+        return i % 2 === 1 ? '<strong>' + body + '</strong>' : body;
+      })
+      .join('');
   }
 
   function loadCSS(url) {
@@ -85,8 +105,8 @@
 #dst-scrollytelling .dst-map-col {
   width: 60%;
   position: sticky;
-  top: 20px;
-  height: calc(100vh - 20px);
+  top: 80px;
+  height: calc(100vh - 80px);
   z-index: 1;
 }
 #dst-scrollytelling .dst-map {
@@ -99,13 +119,16 @@
   z-index: 2;
 }
 #dst-scrollytelling .dst-step {
-  min-height: 95vh;
+  min-height: 120vh;
   display: flex;
+  flex-direction: row;
   align-items: center;
   padding: 2rem 1.5rem;
 }
+/* Wie Kartenhöhe (sticky-Top 80px), Inhalt vertikal in der Spalte zentriert */
 #dst-scrollytelling .dst-step-intro {
-  min-height: 60vh;
+  min-height: calc(100vh - 80px);
+  justify-content: flex-start;
 }
 #dst-scrollytelling .dst-step-card {
   background: rgba(255, 255, 255, 0.95);
@@ -114,7 +137,9 @@
   border-radius: 2px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.12);
   transition: border-color 0.3s ease;
-  max-width: 340px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 #dst-scrollytelling .dst-step.is-active .dst-step-card {
   border-left-color: ${BRAND_COLOR};
@@ -133,6 +158,10 @@
   line-height: 1.6;
   color: #333;
 }
+#dst-scrollytelling .dst-step-text strong {
+  font-weight: 700;
+  color: #111;
+}
 #dst-scrollytelling .dst-spacer {
   height: 40vh;
 }
@@ -147,7 +176,27 @@
     top: 0;
   }
   #dst-scrollytelling .dst-text-col { width: 100%; }
-  #dst-scrollytelling .dst-step { padding: 1.25rem 1rem; }
+  #dst-scrollytelling .dst-step {
+    min-height: 210dvh;
+    min-height: 210vh;
+    padding: 1.25rem 1rem;
+  }
+  /* Intro über der Kartenfläche, Karte in der Vollbild-Fläche zentriert */
+  #dst-scrollytelling .dst-step.dst-step-intro {
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin-top: -100vh;
+    margin-top: -100dvh;
+    position: relative;
+    z-index: 1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+  }
+  #dst-scrollytelling .dst-spacer {
+    height: 60dvh;
+    height: 60vh;
+  }
   #dst-scrollytelling .dst-step-card { max-width: 100%; }
 }`;
     document.head.appendChild(style);
@@ -179,10 +228,9 @@
     intro.dataset.stepIndex = '-1';
     intro.innerHTML =
       '<div class="dst-step-card">' +
-        '<h2 class="dst-step-title">Kritische Meerengen</h2>' +
+        '<h2 class="dst-step-title">Kritische Engstellen</h2>' +
         '<p class="dst-step-text">' +
-          'Zwei Wasserstra&szlig;en, durch die ein gro&szlig;er Teil des Welthandels flie&szlig;t &ndash; ' +
-          'und die Deutschland direkt betreffen. Scrollen Sie, um mehr zu erfahren.' +
+          'Rund um den Globus gibt es sieben Nadelöhre für die Containerschifffahrt. Jede Störung hier wirkt sich direkt auf den Welthandel aus.' +
         '</p>' +
       '</div>';
     wrap.appendChild(intro);
@@ -255,23 +303,71 @@
 
   // ── Scrollama Init ─────────────────────────────────────────────────────────
 
+  function isNarrowView() {
+    return window.matchMedia(MOBILE_MQ).matches;
+  }
+
   function initScrollama(map, features, container) {
     const scroller = scrollama();
     const steps = container.querySelectorAll('.dst-step'); // cached once
+    let moveGen = 0;
 
     scroller
       .setup({
         step: '#' + ROOT_ID + ' .dst-step',
-        offset: 0.5,
+        offset: isNarrowView() ? SCROLL_OFFSET_MOBILE : SCROLL_OFFSET_DESKTOP,
         debug: false,
       })
       .onStepEnter(function (_ref) {
         const element = _ref.element;
+        const idx = parseInt(element.dataset.stepIndex, 10);
+        const narrow = isNarrowView();
 
+        if (narrow) {
+          moveGen += 1;
+          const my = moveGen;
+          steps.forEach(function (el) { el.classList.remove('is-active'); });
+          resetMarkers(map);
+
+          function applyActive() {
+            if (my !== moveGen) return;
+            if (idx !== -1) {
+              highlightMarker(map, idx);
+            }
+            element.classList.add('is-active');
+          }
+
+          function whenCameraDone() {
+            map.once('moveend', applyActive);
+            const maxMs = (idx === -1 ? 1000 : FLY_DURATION) + 250;
+            setTimeout(function () {
+              if (my !== moveGen) return;
+              if (element.classList.contains('is-active')) return;
+              applyActive();
+            }, maxMs);
+          }
+
+          if (idx === -1) {
+            map.flyTo({ center: MAP_CENTER, zoom: MAP_ZOOM, duration: 1000, essential: true });
+            whenCameraDone();
+            return;
+          }
+
+          const feature = features[idx];
+          const bounds  = parseBboxBounds(feature.properties.bbox || '');
+
+          if (bounds) {
+            map.fitBounds(bounds, { padding: 60, duration: FLY_DURATION, maxZoom: 10 });
+          } else {
+            map.flyTo({ center: feature.geometry.coordinates, zoom: 8, duration: FLY_DURATION, essential: true });
+          }
+          whenCameraDone();
+          return;
+        }
+
+        // Desktop: Karten-Update und aktiver Step sofort
         steps.forEach(function (el) { el.classList.remove('is-active'); });
         element.classList.add('is-active');
-
-        const idx = parseInt(element.dataset.stepIndex, 10);
 
         if (idx === -1) {
           map.flyTo({ center: MAP_CENTER, zoom: MAP_ZOOM, duration: 1000, essential: true });
@@ -292,6 +388,7 @@
       });
 
     window.addEventListener('resize', function () {
+      scroller.offset(isNarrowView() ? SCROLL_OFFSET_MOBILE : SCROLL_OFFSET_DESKTOP);
       scroller.resize();
       map.resize();
     });
