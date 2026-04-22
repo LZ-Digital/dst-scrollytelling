@@ -85,8 +85,8 @@
 #dst-scrollytelling .dst-map-col {
   width: 60%;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: 20px;
+  height: calc(100vh - 20px);
   z-index: 1;
 }
 #dst-scrollytelling .dst-map {
@@ -99,7 +99,7 @@
   z-index: 2;
 }
 #dst-scrollytelling .dst-step {
-  min-height: 80vh;
+  min-height: 95vh;
   display: flex;
   align-items: center;
   padding: 2rem 1.5rem;
@@ -139,9 +139,10 @@
 @media (max-width: 768px) {
   #dst-scrollytelling .dst-layout { flex-direction: column; }
   #dst-scrollytelling .dst-map-col {
-    width: 100%;
-    height: 60vw;
-    min-height: 260px;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    min-height: unset;
     position: sticky;
     top: 0;
   }
