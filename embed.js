@@ -15,7 +15,7 @@
   const MAP_ZOOM     = 1;
   const CSS_TAG_ID   = 'dst-scrollytelling-styles';
   const ROOT_ID      = 'dst-scrollytelling';
-  const BRAND_COLOR  = '#086f91';
+  const BRAND_COLOR  = '#0a94c2'; // #086f91
   const FLY_DURATION = 1400;
   // Must match the mobile @media in injectStyles
   const MOBILE_MQ = '(max-width: 768px)';
@@ -252,26 +252,39 @@
 
   // ── Map Helpers ────────────────────────────────────────────────────────────
 
-  // Parses a "west,south,east,north" bbox string into a GeoJSON Polygon.
-  function bboxToPolygon(bboxStr, index) {
+  // Bbox als „Passkreuz“-Ecken (DTP: Schnittmarken): je Ecke ein L als eine
+  // LineString (3 Punkte: Ende Schenkel → Ecke → Ende anderer Schenkel), damit
+  // line-join an der Ecke keinen Butt-Cap-Schlitz zwischen zwei Segmenten hat.
+  function bboxToPasskreuz(bboxStr, index) {
     const p = bboxStr.split(',').map(Number);
     if (p.length !== 4 || p.some(isNaN)) return null;
-    const [west, south, east, north] = p;
+    const [a, b, c, d] = p;
+    const we = Math.min(a, c);
+    const ea = Math.max(a, c);
+    const so = Math.min(b, d);
+    const no = Math.max(b, d);
+    const w = Math.abs(ea - we);
+    const h = Math.abs(no - so);
+    if (w < 1e-9 || h < 1e-9) return null;
+    const L = Math.max(0.0001, Math.min(w, h) * 0.22);
+    const lines = [
+      [[we + L, so], [we, so], [we, so + L]],
+      [[ea - L, so], [ea, so], [ea, so + L]],
+      [[ea - L, no], [ea, no], [ea, no - L]],
+      [[we + L, no], [we, no], [we, no - L]],
+    ];
     return {
       type: 'Feature',
       properties: { index: index },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
-      },
+      geometry: { type: 'MultiLineString', coordinates: lines },
     };
   }
 
-  function buildBoxGeoJSON(features) {
+  function buildPasskreuzGeoJSON(features) {
     return {
       type: 'FeatureCollection',
       features: features
-        .map(function (f) { return bboxToPolygon(f.properties.bbox || '', f.properties.index); })
+        .map(function (f) { return bboxToPasskreuz(f.properties.bbox || '', f.properties.index); })
         .filter(Boolean),
     };
   }
@@ -283,22 +296,20 @@
     return [[p[0], p[1]], [p[2], p[3]]];
   }
 
-  function setBoxPaint(map, lineWidth, lineOpacity, fillOpacity) {
-    map.setPaintProperty('dst-box-line', 'line-width',   lineWidth);
-    map.setPaintProperty('dst-box-line', 'line-opacity', lineOpacity);
-    map.setPaintProperty('dst-box-fill', 'fill-opacity', fillOpacity);
+  function setPasskreuzPaint(map, lineWidth, lineOpacity) {
+    map.setPaintProperty('dst-passkreuz-line', 'line-width',   lineWidth);
+    map.setPaintProperty('dst-passkreuz-line', 'line-opacity', lineOpacity);
   }
 
   function highlightMarker(map, activeIndex) {
-    setBoxPaint(map,
+    setPasskreuzPaint(map,
       ['case', ['==', ['get', 'index'], activeIndex], 3,    1.5],
-      ['case', ['==', ['get', 'index'], activeIndex], 1,    0.4],
-      ['case', ['==', ['get', 'index'], activeIndex], 0.12, 0.04]
+      ['case', ['==', ['get', 'index'], activeIndex], 1,    0.4]
     );
   }
 
   function resetMarkers(map) {
-    setBoxPaint(map, 1.5, 0.4, 0.04);
+    setPasskreuzPaint(map, 1.5, 0.4);
   }
 
   // ── Scrollama Init ─────────────────────────────────────────────────────────
@@ -445,29 +456,21 @@
       // Point source — used only for name labels
       map.addSource('dst-points', { type: 'geojson', data: geojson });
 
-      // Polygon source — bbox rectangles per feature
-      map.addSource('dst-boxes', { type: 'geojson', data: buildBoxGeoJSON(features) });
+      // Bbox → Schnittmarken-Ecken (Passkreuz-Optik)
+      map.addSource('dst-passkreuz', { type: 'geojson', data: buildPasskreuzGeoJSON(features) });
 
-      // Box fill (semi-transparent)
       map.addLayer({
-        id:     'dst-box-fill',
-        type:   'fill',
-        source: 'dst-boxes',
-        paint: {
-          'fill-color':   BRAND_COLOR,
-          'fill-opacity': 0.04,
-        },
-      });
-
-      // Box outline
-      map.addLayer({
-        id:     'dst-box-line',
+        id:     'dst-passkreuz-line',
         type:   'line',
-        source: 'dst-boxes',
+        source: 'dst-passkreuz',
         paint: {
           'line-color':   BRAND_COLOR,
           'line-width':   1.5,
           'line-opacity': 0.4,
+        },
+        layout: {
+          'line-cap':  'butt',
+          'line-join': 'miter',
         },
       });
 
