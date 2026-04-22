@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kritische Meerengen – Scrollytelling Demo</title>
+  <style>
+    /* Page chrome only — nothing inside #dst-scrollytelling */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f0f0f0;
+      color: #222;
+    }
+    .page-header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 1.25rem 2rem;
+      border-bottom: 3px solid #e63946;
+    }
+    .page-header h1 {
+      margin: 0 0 0.25rem 0;
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .page-header p {
+      margin: 0;
+      font-size: 0.8rem;
+      opacity: 0.7;
+    }
+    .page-article {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #fff;
+    }
+    .article-intro {
+      padding: 2rem 2rem 1.5rem;
+      border-bottom: 1px solid #e5e5e5;
+      max-width: 760px;
+    }
+    .article-intro h2 {
+      margin: 0 0 0.75rem 0;
+      font-size: 1.6rem;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+    .article-intro p {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: #444;
+    }
+    /* Mirrors the CMS MediaWrapper_large / MediaFacebook container */
+    .MediaWrapper_large {
+      width: 100%;
+      margin: 0;
+    }
+    .MediaFacebook {
+      /* intentionally unstyled – the embed must handle its own sizing */
+    }
+    .article-outro {
+      padding: 1.5rem 2rem 3rem;
+      max-width: 760px;
+      border-top: 1px solid #e5e5e5;
+    }
+    .article-outro p {
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: #444;
+    }
+    .embed-hint {
+      margin-top: 2rem;
+      padding: 1rem 1.25rem;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #555;
+      font-family: monospace;
+    }
+    .embed-hint strong { display: block; margin-bottom: 0.5rem; font-size: 0.75rem; color: #999; font-family: Arial, sans-serif; }
+    .page-footer {
+      background: #1a1a2e;
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="page-header">
+    <h1>Lebensmittelzeitung &ndash; Interaktive Karte</h1>
+    <p>Scrollytelling Demo &middot; dst-scrollytelling</p>
+  </header>
+
+  <div class="page-article">
+
+    <div class="article-intro">
+      <h2>Engp&auml;sse im Welthandel: Kritische Meerengen</h2>
+      <p>
+        Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor
+        invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam
+        et justo duo dolores et ea rebum.
+      </p>
+    </div>
+
+    <!--
+      ┌─────────────────────────────────────────────────────┐
+      │  CMS-EMBED – exakt wie im Redaktionssystem          │
+      │  <div class="MediaWrapper_large …">                 │
+      │    <div class="MediaFacebook">                      │
+      │      ###HIER STEHT DAS EMBED###                     │
+      │    </div>                                           │
+      │  </div>                                             │
+      └─────────────────────────────────────────────────────┘
+    -->
+    <div class="MediaWrapper_large MediaWrapper_imgCenter">
+      <div class="MediaFacebook">
+
+        <div id="dst-scrollytelling"></div>
+        <script src="embed.js"></script>
+
+      </div>
+    </div>
+
+    <div class="article-outro">
+      <p>
+        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.
+        Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor
+        invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua.
+      </p>
+      <div class="embed-hint">
+        <strong>Embed-Snippet f&uuml;r das CMS</strong>
+        &lt;div id="dst-scrollytelling"&gt;&lt;/div&gt;<br>
+        &lt;script src="https://lz-digital.github.io/dst-scrollytelling/embed.js"&gt;&lt;/script&gt;
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="page-footer">
+    &copy; Lebensmittelzeitung &middot; dst-scrollytelling Demo
+  </footer>
+
+</body>
+</html>
