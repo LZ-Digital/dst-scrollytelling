@@ -6,20 +6,17 @@
   const _script = document.currentScript;
   const _base = _script ? _script.src.replace(/\/[^/]*$/, '/') : '';
 
-  const GEOJSON_URL   = _base + 'data/data.geojson';
-  const ML_CSS_URL    = 'https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css';
-  const ML_JS_URL     = 'https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js';
-  const SCRL_JS_URL   = 'https://unpkg.com/scrollama@3/build/scrollama.min.js';
-  const MAP_STYLE     = 'https://tiles.openfreemap.org/styles/positron';
-  const MAP_CENTER    = [37.6, 21.6]; // Red Sea overview
-  const MAP_ZOOM      = 3.5;
-  const CSS_TAG_ID    = 'dst-scrollytelling-styles';
-  const ROOT_ID       = 'dst-scrollytelling';
-  const ACTIVE_COLOR  = '#e63946';
-  const INACT_COLOR   = '#6c757d';
-  const ACTIVE_RADIUS = 10;
-  const INACT_RADIUS  = 6;
-  const FLY_DURATION  = 1400;
+  const GEOJSON_URL  = _base + 'data/data.geojson';
+  const ML_CSS_URL   = 'https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css';
+  const ML_JS_URL    = 'https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js';
+  const SCRL_JS_URL  = 'https://unpkg.com/scrollama@3/build/scrollama.min.js';
+  const MAP_STYLE    = 'https://tiles.openfreemap.org/styles/positron';
+  const MAP_CENTER   = [0, 20];
+  const MAP_ZOOM     = 1;
+  const CSS_TAG_ID   = 'dst-scrollytelling-styles';
+  const ROOT_ID      = 'dst-scrollytelling';
+  const BRAND_COLOR  = '#086f91';
+  const FLY_DURATION = 1400;
 
   // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -71,7 +68,6 @@
     style.textContent = `
 #dst-scrollytelling {
   box-sizing: border-box;
-  font-family: Georgia, "Times New Roman", serif;
   line-height: 1.55;
   color: #222;
   background: #fff;
@@ -86,11 +82,6 @@
   width: 100%;
   position: relative;
 }
-#dst-scrollytelling .dst-text-col {
-  width: 40%;
-  position: relative;
-  z-index: 2;
-}
 #dst-scrollytelling .dst-map-col {
   width: 60%;
   position: sticky;
@@ -101,6 +92,11 @@
 #dst-scrollytelling .dst-map {
   width: 100%;
   height: 100%;
+}
+#dst-scrollytelling .dst-text-col {
+  width: 40%;
+  position: relative;
+  z-index: 2;
 }
 #dst-scrollytelling .dst-step {
   min-height: 80vh;
@@ -121,7 +117,7 @@
   max-width: 340px;
 }
 #dst-scrollytelling .dst-step.is-active .dst-step-card {
-  border-left-color: ${ACTIVE_COLOR};
+  border-left-color: ${BRAND_COLOR};
 }
 #dst-scrollytelling .dst-step-title {
   margin: 0 0 0.6rem 0;
@@ -159,14 +155,15 @@
   // ── DOM Construction ───────────────────────────────────────────────────────
 
   function buildDOM(container, mapDivId) {
+    // Map column first (left), text column second (right)
     container.innerHTML =
       '<div class="dst-layout">' +
+        '<div class="dst-map-col">' +
+          '<div class="dst-map" id="' + mapDivId + '"></div>' +
+        '</div>' +
         '<div class="dst-text-col">' +
           '<div class="dst-steps-wrap"></div>' +
           '<div class="dst-spacer"></div>' +
-        '</div>' +
-        '<div class="dst-map-col">' +
-          '<div class="dst-map" id="' + mapDivId + '"></div>' +
         '</div>' +
       '</div>';
   }
@@ -206,32 +203,58 @@
 
   // ── Map Helpers ────────────────────────────────────────────────────────────
 
-  function computeBounds(features) {
-    const coords = features.map(function (f) { return f.geometry.coordinates; });
-    return coords.reduce(function (b, c) {
-      return b.extend(c);
-    }, new maplibregl.LngLatBounds(coords[0], coords[0]));
+  // Parses a "west,south,east,north" bbox string into a GeoJSON Polygon.
+  function bboxToPolygon(bboxStr, index) {
+    const p = bboxStr.split(',').map(Number);
+    if (p.length !== 4 || p.some(isNaN)) return null;
+    const [west, south, east, north] = p;
+    return {
+      type: 'Feature',
+      properties: { index: index },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+      },
+    };
   }
 
-  function setCirclePaint(map, radius, color) {
-    map.setPaintProperty('dst-circles', 'circle-radius', radius);
-    map.setPaintProperty('dst-circles', 'circle-color',  color);
+  function buildBoxGeoJSON(features) {
+    return {
+      type: 'FeatureCollection',
+      features: features
+        .map(function (f) { return bboxToPolygon(f.properties.bbox || '', f.properties.index); })
+        .filter(Boolean),
+    };
+  }
+
+  // Parses bbox string and returns [[west,south],[east,north]] for map.fitBounds.
+  function parseBboxBounds(bboxStr) {
+    const p = bboxStr.split(',').map(Number);
+    if (p.length !== 4 || p.some(isNaN)) return null;
+    return [[p[0], p[1]], [p[2], p[3]]];
+  }
+
+  function setBoxPaint(map, lineWidth, lineOpacity, fillOpacity) {
+    map.setPaintProperty('dst-box-line', 'line-width',   lineWidth);
+    map.setPaintProperty('dst-box-line', 'line-opacity', lineOpacity);
+    map.setPaintProperty('dst-box-fill', 'fill-opacity', fillOpacity);
   }
 
   function highlightMarker(map, activeIndex) {
-    setCirclePaint(map,
-      ['case', ['==', ['get', 'index'], activeIndex], ACTIVE_RADIUS, INACT_RADIUS],
-      ['case', ['==', ['get', 'index'], activeIndex], ACTIVE_COLOR,  INACT_COLOR]
+    setBoxPaint(map,
+      ['case', ['==', ['get', 'index'], activeIndex], 3,    1.5],
+      ['case', ['==', ['get', 'index'], activeIndex], 1,    0.4],
+      ['case', ['==', ['get', 'index'], activeIndex], 0.12, 0.04]
     );
   }
 
   function resetMarkers(map) {
-    setCirclePaint(map, INACT_RADIUS, INACT_COLOR);
+    setBoxPaint(map, 1.5, 0.4, 0.04);
   }
 
   // ── Scrollama Init ─────────────────────────────────────────────────────────
 
-  function initScrollama(map, features, container, bounds) {
+  function initScrollama(map, features, container) {
     const scroller = scrollama();
     const steps = container.querySelectorAll('.dst-step'); // cached once
 
@@ -250,22 +273,19 @@
         const idx = parseInt(element.dataset.stepIndex, 10);
 
         if (idx === -1) {
-          map.fitBounds(bounds, { padding: 80, duration: 1000, maxZoom: 6 });
+          map.flyTo({ center: MAP_CENTER, zoom: MAP_ZOOM, duration: 1000, essential: true });
           resetMarkers(map);
           return;
         }
 
         const feature = features[idx];
-        const props   = feature.properties;
+        const bounds  = parseBboxBounds(feature.properties.bbox || '');
 
-        map.flyTo({
-          center:   feature.geometry.coordinates,
-          zoom:     props.zoom    ?? 8,
-          bearing:  props.bearing ?? 0,
-          pitch:    props.pitch   ?? 0,
-          duration: FLY_DURATION,
-          essential: true,
-        });
+        if (bounds) {
+          map.fitBounds(bounds, { padding: 60, duration: FLY_DURATION, maxZoom: 10 });
+        } else {
+          map.flyTo({ center: feature.geometry.coordinates, zoom: 8, duration: FLY_DURATION, essential: true });
+        }
 
         highlightMarker(map, idx);
       });
@@ -302,12 +322,13 @@
     }
 
     const map = new maplibregl.Map({
-      container: mapDivId,
-      style:     MAP_STYLE,
-      center:    MAP_CENTER,
-      zoom:      MAP_ZOOM,
-      bearing:   0,
-      pitch:     0,
+      container:  mapDivId,
+      style:      MAP_STYLE,
+      center:     MAP_CENTER,
+      zoom:       MAP_ZOOM,
+      bearing:    0,
+      pitch:      0,
+      scrollZoom: false,
     });
 
     map.on('load', async function () {
@@ -322,25 +343,37 @@
       }
 
       const features = geojson.features;
-      const bounds   = computeBounds(features);
 
-      map.addSource('dst-points', {
-        type: 'geojson',
-        data: geojson,
-      });
+      // Point source — used only for name labels
+      map.addSource('dst-points', { type: 'geojson', data: geojson });
 
+      // Polygon source — bbox rectangles per feature
+      map.addSource('dst-boxes', { type: 'geojson', data: buildBoxGeoJSON(features) });
+
+      // Box fill (semi-transparent)
       map.addLayer({
-        id:     'dst-circles',
-        type:   'circle',
-        source: 'dst-points',
+        id:     'dst-box-fill',
+        type:   'fill',
+        source: 'dst-boxes',
         paint: {
-          'circle-radius':       INACT_RADIUS,
-          'circle-color':        INACT_COLOR,
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff',
+          'fill-color':   BRAND_COLOR,
+          'fill-opacity': 0.04,
         },
       });
 
+      // Box outline
+      map.addLayer({
+        id:     'dst-box-line',
+        type:   'line',
+        source: 'dst-boxes',
+        paint: {
+          'line-color':   BRAND_COLOR,
+          'line-width':   1.5,
+          'line-opacity': 0.4,
+        },
+      });
+
+      // Location name labels (above boxes)
       map.addLayer({
         id:     'dst-labels',
         type:   'symbol',
@@ -348,8 +381,8 @@
         layout: {
           'text-field':  ['get', 'name'],
           'text-size':   11,
-          'text-offset': [0, 1.3],
-          'text-anchor': 'top',
+          'text-offset': [0, 0],
+          'text-anchor': 'center',
           'text-font':   ['Noto Sans Regular'],
         },
         paint: {
@@ -360,8 +393,7 @@
       });
 
       buildSteps(container, features);
-      map.fitBounds(bounds, { padding: 80, duration: 1000, maxZoom: 6 });
-      initScrollama(map, features, container, bounds);
+      initScrollama(map, features, container);
     });
   }
 
