@@ -331,6 +331,24 @@
     };
   }
 
+  // SW-Ecke jeder Bbox als Punkt – für das Label unten links im Polygon
+  function buildBboxLabelGeoJSON(features) {
+    return {
+      type: 'FeatureCollection',
+      features: features.map(function (f) {
+        const p = (f.properties.bbox || '').split(',').map(Number);
+        if (p.length !== 4 || p.some(isNaN)) return null;
+        const west  = Math.min(p[0], p[2]);
+        const south = Math.min(p[1], p[3]);
+        return {
+          type: 'Feature',
+          properties: { name: f.properties.name, index: f.properties.index },
+          geometry: { type: 'Point', coordinates: [west, south] },
+        };
+      }).filter(Boolean),
+    };
+  }
+
   // Parses bbox string and returns [[west,south],[east,north]] for map.fitBounds.
   function parseBboxBounds(bboxStr) {
     const p = bboxStr.split(',').map(Number);
@@ -483,6 +501,15 @@
     });
 
     map.on('load', async function () {
+      // Kartenbeschriftung auf Deutsch umstellen (name:de, Fallback: name)
+      map.getStyle().layers.forEach(function (layer) {
+        if (layer.layout && layer.layout['text-field'] !== undefined) {
+          map.setLayoutProperty(layer.id, 'text-field', [
+            'coalesce', ['get', 'name:de'], ['get', 'name'],
+          ]);
+        }
+      });
+
       let geojson;
       try {
         const res = await fetch(GEOJSON_URL);
@@ -550,6 +577,9 @@
       // Bbox → Schnittmarken-Ecken (Passkreuz-Optik)
       map.addSource('dst-passkreuz', { type: 'geojson', data: buildPasskreuzGeoJSON(features) });
 
+      // NW-Ecken der Bboxen als Label-Ankerpunkte
+      map.addSource('dst-bbox-labels', { type: 'geojson', data: buildBboxLabelGeoJSON(features) });
+
       // Passkreuz: bei Start-Zoom unsichtbar, blendet erst beim Heranzoomen ein
       map.addLayer({
         id:     'dst-passkreuz-line',
@@ -588,20 +618,22 @@
         },
       });
 
-      // Ortsname-Labels: beim Start-Zoom unsichtbar (Dots übernehmen), blenden beim Heranzoomen ein
+      // Ortsname-Labels: oben links in der Bbox, Versalien, BRAND_COLOR – beim Start-Zoom unsichtbar
       map.addLayer({
         id:     'dst-labels',
         type:   'symbol',
-        source: 'dst-points',
+        source: 'dst-bbox-labels',
         layout: {
-          'text-field':  ['get', 'name'],
-          'text-size':   11,
-          'text-offset': [0, 1.2],
-          'text-anchor': 'top',
-          'text-font':   ['Noto Sans Regular'],
+          'text-field':     ['get', 'name'],
+          'text-size':      13,
+          'text-anchor':    'bottom-left',
+          'text-offset':    [0.8, -0.8],
+          'text-max-width': 120,
+          'text-font':      ['Noto Sans Bold'],
+          'text-transform': 'uppercase',
         },
         paint: {
-          'text-color':      '#111',
+          'text-color':      BRAND_COLOR,
           'text-halo-color': '#ffffff',
           'text-halo-width': 1.5,
           'text-opacity':    ['interpolate', ['linear'], ['zoom'], ZOOM_FADE_START, 0, ZOOM_FADE_END, 1],
