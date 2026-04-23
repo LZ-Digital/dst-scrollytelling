@@ -18,6 +18,9 @@
   const ROOT_ID      = 'dst-scrollytelling';
   const BRAND_COLOR  = '#0a94c2'; // #086f91
   const FLY_DURATION = 1400;
+  // Höhe des CMS-Headers (Desktop: fixe Leiste; Mobile: Header + Insite-Nav, scroll-hide)
+  const HEADER_HEIGHT_DESKTOP = 80;  // px
+  const HEADER_HEIGHT_MOBILE  = 97;  // px (Header + Insite-Navigation)
   // Must match the mobile @media in injectStyles
   const MOBILE_MQ = '(max-width: 768px)';
   // Scrollama: höherer Wert = Step wird erst „entered“, wenn stärker gescrollt (vorheriger Step eher weg).
@@ -117,8 +120,8 @@
 #dst-scrollytelling .dst-map-col {
   width: 60%;
   position: sticky;
-  top: 80px;
-  height: calc(100vh - 80px);
+  top: ${HEADER_HEIGHT_DESKTOP}px;
+  height: calc(100vh - ${HEADER_HEIGHT_DESKTOP}px);
   z-index: 1;
 }
 #dst-scrollytelling .dst-map {
@@ -137,9 +140,9 @@
   align-items: center;
   padding: 2rem 1.5rem;
 }
-/* Wie Kartenhöhe (sticky-Top 80px), Inhalt vertikal in der Spalte zentriert */
+/* Wie Kartenhöhe, Inhalt vertikal in der Spalte zentriert */
 #dst-scrollytelling .dst-step-intro {
-  min-height: calc(100vh - 80px);
+  min-height: calc(100vh - ${HEADER_HEIGHT_DESKTOP}px);
   justify-content: flex-start;
 }
 #dst-scrollytelling .dst-step-card {
@@ -202,9 +205,15 @@
   50%       { transform: rotate(45deg) translate(2px, 2px); opacity: 0.5; }
 }
 @media (max-width: 768px) {
+  /* Fix 1: Full-bleed – bricht aus CMS-Container-Padding aus, verhindert
+     horizontalen Versatz und Overflow nach rechts. */
+  #dst-scrollytelling {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+  }
   #dst-scrollytelling .dst-layout { flex-direction: column; }
   #dst-scrollytelling .dst-map-col {
-    width: 100vw;
+    width: 100%;
     height: 100vh;
     height: 100dvh;
     min-height: unset;
