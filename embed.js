@@ -10,7 +10,7 @@
   const ML_CSS_URL   = 'https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css';
   const ML_JS_URL    = 'https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js';
   const SCRL_JS_URL  = 'https://unpkg.com/scrollama@3/build/scrollama.min.js';
-  const MAP_STYLE    = 'https://tiles.openfreemap.org/styles/positron';
+  const MAP_STYLE    = 'https://tiles.openfreemap.org/styles/liberty';
   const MAP_CENTER      = [0, 20];
   const MAP_ZOOM        = 1;
   const MAP_ZOOM_MOBILE = 0.5; // zeigt die gesamte Weltkarte auf schmalen Screens
@@ -478,7 +478,7 @@
       center:     MAP_CENTER,
       zoom:       isNarrowView() ? MAP_ZOOM_MOBILE : MAP_ZOOM,
       bearing:    0,
-      pitch:      0,
+      pitch:      45,
       scrollZoom: false,
     });
 
