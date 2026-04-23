@@ -11,8 +11,9 @@
   const ML_JS_URL    = 'https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js';
   const SCRL_JS_URL  = 'https://unpkg.com/scrollama@3/build/scrollama.min.js';
   const MAP_STYLE    = 'https://tiles.openfreemap.org/styles/positron';
-  const MAP_CENTER   = [0, 20];
-  const MAP_ZOOM     = 1;
+  const MAP_CENTER      = [0, 20];
+  const MAP_ZOOM        = 1;
+  const MAP_ZOOM_MOBILE = 0.5; // zeigt die gesamte Weltkarte auf schmalen Screens
   const CSS_TAG_ID   = 'dst-scrollytelling-styles';
   const ROOT_ID      = 'dst-scrollytelling';
   const BRAND_COLOR  = '#0a94c2'; // #086f91
@@ -22,6 +23,17 @@
   // Scrollama: höherer Wert = Step wird erst „entered“, wenn stärker gescrollt (vorheriger Step eher weg).
   const SCROLL_OFFSET_DESKTOP   = 0.5;
   const SCROLL_OFFSET_MOBILE   = 0.8;
+
+  // Zoom-Schwelle: Punkte sichtbar ↔ Passkreuz sichtbar
+  // Dots + Nummern: voll sichtbar bei zoom ≤ 2.5, ausgeblendet bei zoom ≥ 4
+  // Passkreuz + Labels: unsichtbar bei zoom ≤ 2.5, voll sichtbar bei zoom ≥ 4
+  // ZOOM_FADE_END=4 stellt sicher, dass Dots auch bei großen BBoxen (z.B.
+  // Straße von Malakka) auf schmalem Mobile-Screen verschwunden sind.
+  const ZOOM_FADE_START = 2.5;
+  const ZOOM_FADE_END   = 4;
+  const PASSKREUZ_DEFAULT_OPACITY = ['interpolate', ['linear'], ['zoom'], ZOOM_FADE_START, 0,   ZOOM_FADE_END, 0.4];
+  const PASSKREUZ_DEFAULT_WIDTH   = ['interpolate', ['linear'], ['zoom'], ZOOM_FADE_START, 0,   ZOOM_FADE_END, 1.5];
+  const DOT_ZOOM_OPACITY          = ['interpolate', ['linear'], ['zoom'], ZOOM_FADE_START, 1,   ZOOM_FADE_END, 0  ];
 
   // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -165,6 +177,30 @@
 #dst-scrollytelling .dst-spacer {
   height: 40vh;
 }
+#dst-scrollytelling .dst-scroll-hint {
+  display: block;
+  margin-top: 0.9rem;
+  color: ${BRAND_COLOR};
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+#dst-scrollytelling .dst-scroll-hint::after {
+  content: '';
+  display: block;
+  margin: 0.45rem auto 0;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid ${BRAND_COLOR};
+  border-bottom: 2px solid ${BRAND_COLOR};
+  transform: rotate(45deg);
+  animation: dst-arrow-bounce 2s ease-in-out infinite;
+}
+@keyframes dst-arrow-bounce {
+  0%, 100% { transform: rotate(45deg) translate(0, 0); opacity: 1; }
+  50%       { transform: rotate(45deg) translate(2px, 2px); opacity: 0.5; }
+}
 @media (max-width: 768px) {
   #dst-scrollytelling .dst-layout { flex-direction: column; }
   #dst-scrollytelling .dst-map-col {
@@ -177,21 +213,27 @@
   }
   #dst-scrollytelling .dst-text-col { width: 100%; }
   #dst-scrollytelling .dst-step {
-    min-height: 210dvh;
-    min-height: 210vh;
+    min-height: 180dvh;
+    min-height: 180vh;
     padding: 1.25rem 1rem;
   }
-  /* Intro über der Kartenfläche, Karte in der Vollbild-Fläche zentriert */
+  /* Intro-Card im unteren Drittel der Karte.
+     Höhe 200dvh: erste 100dvh überlagern die Karte (margin-top: -100dvh),
+     die restlichen 100dvh sind Scroll-Puffer. Step 0 triggert erst bei
+     ca. 120dvh Scroll (= 200 - 80dvh Scrollama-Offset), die Intro-Card
+     ist bei ca. 97dvh bereits aus dem Viewport → ~23dvh Puffer. */
   #dst-scrollytelling .dst-step.dst-step-intro {
-    min-height: 100vh;
-    min-height: 100dvh;
+    min-height: 200vh;
+    min-height: 200dvh;
     margin-top: -100vh;
     margin-top: -100dvh;
     position: relative;
     z-index: 1;
     flex-direction: row;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
+    padding-bottom: calc(103vh + 10px);
+    padding-bottom: calc(103dvh + 10px);
   }
   #dst-scrollytelling .dst-spacer {
     height: 60dvh;
@@ -230,7 +272,7 @@
       '<div class="dst-step-card">' +
         '<h2 class="dst-step-title">Maritime Nadelöhre</h2>' +
         '<p class="dst-step-text">' +
-          'Rund um den Globus gibt es sieben neuralgische Punkte für den Schiffsverkehr. Wenn es hier hakt, kommt schlimmstenfalls der Welthandel aus dem Takt.' +
+          'Rund um den Globus gibt es sieben neuralgische Punkte für den Schiffsverkehr. Wenn es hier hakt, kommt schlimmstenfalls der Welthandel aus dem Takt.<br/><span class="dst-scroll-hint">Scrollen Sie weiter</span>' +
         '</p>' +
       '</div>';
     wrap.appendChild(intro);
@@ -309,7 +351,7 @@
   }
 
   function resetMarkers(map) {
-    setPasskreuzPaint(map, 1.5, 0.4);
+    setPasskreuzPaint(map, PASSKREUZ_DEFAULT_WIDTH, PASSKREUZ_DEFAULT_OPACITY);
   }
 
   // ── Scrollama Init ─────────────────────────────────────────────────────────
@@ -359,7 +401,7 @@
           }
 
           if (idx === -1) {
-            map.flyTo({ center: MAP_CENTER, zoom: MAP_ZOOM, duration: 1000, essential: true });
+            map.flyTo({ center: MAP_CENTER, zoom: MAP_ZOOM_MOBILE, duration: 1000, essential: true });
             whenCameraDone();
             return;
           }
@@ -434,7 +476,7 @@
       container:  mapDivId,
       style:      MAP_STYLE,
       center:     MAP_CENTER,
-      zoom:       MAP_ZOOM,
+      zoom:       isNarrowView() ? MAP_ZOOM_MOBILE : MAP_ZOOM,
       bearing:    0,
       pitch:      0,
       scrollZoom: false,
@@ -453,20 +495,70 @@
 
       const features = geojson.features;
 
-      // Point source — used only for name labels
+      // Pulsierender Dot: animiertes Canvas-Image für MapLibre
+      // BRAND_COLOR #0a94c2 → RGB(10, 148, 194)
+      const PULSE_SIZE = 120;
+      const PULSE_DURATION = 2400; // ms – langsamer Puls
+      const pulsingDot = {
+        width:  PULSE_SIZE,
+        height: PULSE_SIZE,
+        data:   new Uint8Array(PULSE_SIZE * PULSE_SIZE * 4),
+
+        onAdd: function () {
+          const canvas = document.createElement('canvas');
+          canvas.width  = this.width;
+          canvas.height = this.height;
+          this.context  = canvas.getContext('2d');
+        },
+
+        render: function () {
+          const t   = (performance.now() % PULSE_DURATION) / PULSE_DURATION;
+          const cx  = this.width  / 2;
+          const cy  = this.height / 2;
+          const innerR    = 16;
+          const maxOuterR = cx - 2;
+          const outerR    = innerR + (maxOuterR - innerR) * t;
+          const ctx = this.context;
+
+          ctx.clearRect(0, 0, this.width, this.height);
+
+          // Äußerer Pulsring (fades out while expanding)
+          ctx.beginPath();
+          ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(10,148,194,' + (0.45 * (1 - t)) + ')';
+          ctx.fill();
+
+          // Innerer Kreis (solid BRAND_COLOR mit weißem Rand)
+          ctx.beginPath();
+          ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+          ctx.fillStyle   = BRAND_COLOR;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth   = 2.5;
+          ctx.fill();
+          ctx.stroke();
+
+          this.data = ctx.getImageData(0, 0, this.width, this.height).data;
+          map.triggerRepaint();
+          return true;
+        },
+      };
+      map.addImage('dst-pulsing-dot', pulsingDot, { pixelRatio: 2 });
+
+      // Point source — used for labels and pulsing dots
       map.addSource('dst-points', { type: 'geojson', data: geojson });
 
       // Bbox → Schnittmarken-Ecken (Passkreuz-Optik)
       map.addSource('dst-passkreuz', { type: 'geojson', data: buildPasskreuzGeoJSON(features) });
 
+      // Passkreuz: bei Start-Zoom unsichtbar, blendet erst beim Heranzoomen ein
       map.addLayer({
         id:     'dst-passkreuz-line',
         type:   'line',
         source: 'dst-passkreuz',
         paint: {
           'line-color':   BRAND_COLOR,
-          'line-width':   1.5,
-          'line-opacity': 0.4,
+          'line-width':   PASSKREUZ_DEFAULT_WIDTH,
+          'line-opacity': PASSKREUZ_DEFAULT_OPACITY,
         },
         layout: {
           'line-cap':  'butt',
@@ -474,7 +566,29 @@
         },
       });
 
-      // Location name labels (above boxes)
+      // Nummerierte Pulsing-Dots: nur im Start-Zoom sichtbar, blenden beim Heranzoomen aus
+      map.addLayer({
+        id:     'dst-pulsing-dots',
+        type:   'symbol',
+        source: 'dst-points',
+        layout: {
+          'icon-image':         'dst-pulsing-dot',
+          'icon-allow-overlap': true,
+          'icon-anchor':        'center',
+          'text-field':         ['to-string', ['+', ['get', 'index'], 1]],
+          'text-size':          11,
+          'text-font':          ['Noto Sans Bold'],
+          'text-anchor':        'center',
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'icon-opacity': DOT_ZOOM_OPACITY,
+          'text-color':   '#ffffff',
+          'text-opacity': DOT_ZOOM_OPACITY,
+        },
+      });
+
+      // Ortsname-Labels: beim Start-Zoom unsichtbar (Dots übernehmen), blenden beim Heranzoomen ein
       map.addLayer({
         id:     'dst-labels',
         type:   'symbol',
@@ -482,14 +596,15 @@
         layout: {
           'text-field':  ['get', 'name'],
           'text-size':   11,
-          'text-offset': [0, 0],
-          'text-anchor': 'center',
+          'text-offset': [0, 1.2],
+          'text-anchor': 'top',
           'text-font':   ['Noto Sans Regular'],
         },
         paint: {
           'text-color':      '#111',
           'text-halo-color': '#ffffff',
           'text-halo-width': 1.5,
+          'text-opacity':    ['interpolate', ['linear'], ['zoom'], ZOOM_FADE_START, 0, ZOOM_FADE_END, 1],
         },
       });
 
