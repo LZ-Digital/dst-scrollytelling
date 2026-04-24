@@ -205,8 +205,7 @@
   50%       { transform: rotate(45deg) translate(2px, 2px); opacity: 0.5; }
 }
 @media (max-width: 768px) {
-  /* Fix 1: Full-bleed – bricht aus CMS-Container-Padding aus, verhindert
-     horizontalen Versatz und Overflow nach rechts. */
+  /* Full-bleed – bricht aus CMS-Container-Padding aus */
   #dst-scrollytelling {
     width: 100vw;
     margin-left: calc(50% - 50vw);
@@ -214,11 +213,14 @@
   #dst-scrollytelling .dst-layout { flex-direction: column; }
   #dst-scrollytelling .dst-map-col {
     width: 100%;
-    height: 100vh;
-    height: 100dvh;
+    /* --dst-header-h wird per JS aus getBoundingClientRect().bottom des
+       CMS-Headers gesetzt und folgt dem scroll-hide Header live.
+       Fallback 0px = volle Höhe wenn kein Header gefunden. */
+    height: calc(100vh - var(--dst-header-h, 0px));
+    height: calc(100dvh - var(--dst-header-h, 0px));
     min-height: unset;
     position: sticky;
-    top: 0;
+    top: var(--dst-header-h, 0px);
   }
   #dst-scrollytelling .dst-text-col { width: 100%; }
   #dst-scrollytelling .dst-step {
@@ -381,6 +383,37 @@
     setPasskreuzPaint(map, PASSKREUZ_DEFAULT_WIDTH, PASSKREUZ_DEFAULT_OPACITY);
   }
 
+  // ── Header Observer (Mobile) ───────────────────────────────────────────────
+
+  // Setzt --dst-header-h auf getBoundingClientRect().bottom des CMS-Headers.
+  // Funktioniert für transform-basiertes scroll-hide (translateY) UND für
+  // höhenbasiertes Kollabieren, weil wir den tatsächlich sichtbaren Bereich
+  // messen, nicht die DOM-Höhe.
+  function initHeaderObserver(container, map) {
+    const header = document.querySelector('.SiteHeaderSticky');
+    if (!header) return;
+
+    let lastH = -1;
+    let ticking = false;
+
+    function update() {
+      ticking = false;
+      const h = Math.max(0, Math.round(header.getBoundingClientRect().bottom));
+      if (h === lastH) return;
+      lastH = h;
+      container.style.setProperty('--dst-header-h', h + 'px');
+      map.resize();
+    }
+
+    function schedule() {
+      if (!ticking) { ticking = true; requestAnimationFrame(update); }
+    }
+
+    update(); // Initialwert sofort setzen
+    window.addEventListener('scroll', schedule, { passive: true });
+    new ResizeObserver(schedule).observe(header);
+  }
+
   // ── Scrollama Init ─────────────────────────────────────────────────────────
 
   function isNarrowView() {
@@ -508,6 +541,8 @@
       pitch:      0,
       scrollZoom: false,
     });
+
+    if (isNarrowView()) initHeaderObserver(container, map);
 
     map.on('load', async function () {
       // Kartenbeschriftung auf Deutsch umstellen (name:de, Fallback: name)
