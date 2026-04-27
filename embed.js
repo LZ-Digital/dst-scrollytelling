@@ -18,9 +18,8 @@
   const ROOT_ID      = 'dst-scrollytelling';
   const BRAND_COLOR  = '#0a94c2'; // #086f91
   const FLY_DURATION = 1400;
-  // Höhe des CMS-Headers (Desktop: fixe Leiste; Mobile: Header + Insite-Nav, scroll-hide)
+  // Höhe des CMS-Headers – Desktop (fixe Leiste, sticky)
   const HEADER_HEIGHT_DESKTOP = 80;  // px
-  const HEADER_HEIGHT_MOBILE  = 97;  // px (Header + Insite-Navigation)
   // Must match the mobile @media in injectStyles
   const MOBILE_MQ = '(max-width: 768px)';
   // Scrollama: höherer Wert = Step wird erst „entered“, wenn stärker gescrollt (vorheriger Step eher weg).
@@ -213,14 +212,16 @@
   #dst-scrollytelling .dst-layout { flex-direction: column; }
   #dst-scrollytelling .dst-map-col {
     width: 100%;
-    /* --dst-header-h wird per JS aus getBoundingClientRect().bottom des
-       CMS-Headers gesetzt und folgt dem scroll-hide Header live.
-       Fallback 0px = volle Höhe wenn kein Header gefunden. */
-    height: calc(100vh - var(--dst-header-h, 0px));
-    height: calc(100dvh - var(--dst-header-h, 0px));
+    /* Karte füllt immer den vollen Viewport – kein Header-Abzug.
+       Blendet der CMS-Header beim Hochscrollen ein, überlagert er die
+       Karte (position: sticky, z-index > dst-map-col) – das ist gewollt.
+       Beim Runterscrollen (Header versteckt) ist die Karte bildschirmfüllend
+       ohne jedes dynamisches Resizing. */
+    height: 100vh;
+    height: 100dvh;
     min-height: unset;
     position: sticky;
-    top: var(--dst-header-h, 0px);
+    top: 0;
   }
   #dst-scrollytelling .dst-text-col { width: 100%; }
   #dst-scrollytelling .dst-step {
@@ -383,37 +384,6 @@
     setPasskreuzPaint(map, PASSKREUZ_DEFAULT_WIDTH, PASSKREUZ_DEFAULT_OPACITY);
   }
 
-  // ── Header Observer (Mobile) ───────────────────────────────────────────────
-
-  // Setzt --dst-header-h auf getBoundingClientRect().bottom des CMS-Headers.
-  // Funktioniert für transform-basiertes scroll-hide (translateY) UND für
-  // höhenbasiertes Kollabieren, weil wir den tatsächlich sichtbaren Bereich
-  // messen, nicht die DOM-Höhe.
-  function initHeaderObserver(container, map) {
-    const header = document.querySelector('.SiteHeaderSticky');
-    if (!header) return;
-
-    let lastH = -1;
-    let ticking = false;
-
-    function update() {
-      ticking = false;
-      const h = Math.max(0, Math.round(header.getBoundingClientRect().bottom));
-      if (h === lastH) return;
-      lastH = h;
-      container.style.setProperty('--dst-header-h', h + 'px');
-      map.resize();
-    }
-
-    function schedule() {
-      if (!ticking) { ticking = true; requestAnimationFrame(update); }
-    }
-
-    update(); // Initialwert sofort setzen
-    window.addEventListener('scroll', schedule, { passive: true });
-    new ResizeObserver(schedule).observe(header);
-  }
-
   // ── Scrollama Init ─────────────────────────────────────────────────────────
 
   function isNarrowView() {
@@ -541,8 +511,6 @@
       pitch:      0,
       scrollZoom: false,
     });
-
-    if (isNarrowView()) initHeaderObserver(container, map);
 
     map.on('load', async function () {
       // Kartenbeschriftung auf Deutsch umstellen (name:de, Fallback: name)
